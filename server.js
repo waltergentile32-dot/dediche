@@ -1,46 +1,34 @@
 // server.js
-const express = require('express');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const path = require('path');
-const fs = require('fs');
+const express = require("express");
+const { google } = require("googleapis");
+const path = require("path");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 
-// 🔑 ID del foglio Google (solo l’ID, NON l’URL intero)
+// 🔑 ID del foglio Google (solo l’ID)
 const DEDICHE_SHEET_ID = "16Epeco74Y5Z1baEND6hoMYCeknSkH6s-HFOMHNblt0E";
 
-// 📂 Carica le credenziali da variabili d’ambiente
-let CREDENTIALS = null;
-if (process.env.GOOGLE_CREDENTIALS) {
-  CREDENTIALS = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-} else {
-  console.error('❌ GOOGLE_CREDENTIALS non trovate!');
+// 📂 Legge le credenziali dall'env (Render)
+if (!process.env.GOOGLE_CREDENTIALS) {
+  console.error("❌ Variabile GOOGLE_CREDENTIALS mancante!");
   process.exit(1);
 }
+const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
+// 🔑 Autenticazione Google Sheets API
+const auth = new google.auth.GoogleAuth({
+  credentials,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+const sheets = google.sheets({ version: "v4", auth });
 
-// 🔑 Funzione per collegarsi al foglio Google
-async function getDoc(sheetId) {
-  if (!CREDENTIALS) throw new Error('Credenziali Google mancanti');
-  const doc = new GoogleSpreadsheet(sheetId);
-
-  await doc.useServiceAccountAuth({
-    client_email: CREDENTIALS.client_email,
-    private_key: CREDENTIALS.private_key.replace(/\\n/g, '\n'),
-  });
-
-  await doc.loadInfo();
-  return doc;
-}
-
-
-// 📞 Validazioni di base
+// 📞 Funzioni utili
 function normalizePhone(phone) {
-  return (phone || '').replace(/\s+/g, '').replace(/[\(\)\-\.]/g, '');
+  return (phone || "").replace(/\s+/g, "").replace(/[\(\)\-\.]/g, "");
 }
 function isValidItalianPhone(phone) {
   if (!phone) return false;
@@ -51,47 +39,46 @@ const bannedWords = ["cazzo", "stronzo", "merda", "insulto1", "insulto2"];
 function containsBanned(text) {
   if (!text) return false;
   const t = text.toLowerCase();
-  return bannedWords.some(w => t.includes(w));
+  return bannedWords.some((w) => t.includes(w));
 }
 
 // 📩 Endpoint submit
-app.post('/submit', async (req, res) => {
+app.post("/submit", async (req, res) => {
   try {
     const payload = req.body || {};
-    const date = (payload.date || '').trim();
-    const nomeDestinatario = (payload.nomeDestinatario || '').trim();
-    const destinatario = normalizePhone((payload.destinatario || '').trim());
-    const mittente = normalizePhone((payload.mittente || '').trim());
-    const canzone = (payload.canzone || '').trim();
-    const messaggio = (payload.messaggio || '').trim();
+    const date = (payload.date || "").trim();
+    const nomeDestinatario = (payload.nomeDestinatario || "").trim();
+    const destinatario = normalizePhone((payload.destinatario || "").trim());
+    const mittente = normalizePhone((payload.mittente || "").trim());
+    const canzone = (payload.canzone || "").trim();
+    const messaggio = (payload.messaggio || "").trim();
 
-    if (!date) return res.status(400).json({ success: false, message: 'Data mancante.' });
-    if (!nomeDestinatario) return res.status(400).json({ success: false, message: 'Nome destinatario mancante.' });
-    if (!isValidItalianPhone(destinatario)) return res.status(400).json({ success: false, message: 'Numero destinatario non valido.' });
-    if (!isValidItalianPhone(mittente)) return res.status(400).json({ success: false, message: 'Numero mittente non valido.' });
-    if (!canzone) return res.status(400).json({ success: false, message: 'Canzone non fornita.' });
-    if (!messaggio || messaggio.length > 2000) return res.status(400).json({ success: false, message: 'Messaggio vuoto o troppo lungo.' });
-    if (containsBanned(messaggio)) return res.status(400).json({ success: false, message: 'Messaggio contiene termini non consentiti.' });
+    if (!date) return res.status(400).json({ success: false, message: "Data mancante." });
+    if (!nomeDestinatario) return res.status(400).json({ success: false, message: "Nome destinatario mancante." });
+    if (!isValidItalianPhone(destinatario)) return res.status(400).json({ success: false, message: "Numero destinatario non valido." });
+    if (!isValidItalianPhone(mittente)) return res.status(400).json({ success: false, message: "Numero mittente non valido." });
+    if (!canzone) return res.status(400).json({ success: false, message: "Canzone non fornita." });
+    if (!messaggio || messaggio.length > 2000) return res.status(400).json({ success: false, message: "Messaggio vuoto o troppo lungo." });
+    if (containsBanned(messaggio)) return res.status(400).json({ success: false, message: "Messaggio contiene termini non consentiti." });
 
-    const doc = await getDoc(DEDICHE_SHEET_ID);
-    const sheet = doc.sheetsByIndex[0];
-    await sheet.addRow({
-      DATA: date,
-      'NOME DESTINATARIO': nomeDestinatario,
-      'NUMERO DESTINATARIO': destinatario,
-      'NUMERO MITTENTE': mittente,
-      'CANZONE ITALIANA DA DEDICARE': canzone,
-      MESSAGGIO: messaggio
+    // ✍️ Scrive la riga sul foglio Google
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: DEDICHE_SHEET_ID,
+      range: "Foglio1!A:F", // prima riga libera
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[date, nomeDestinatario, destinatario, mittente, canzone, messaggio]],
+      },
     });
 
-    return res.json({ success: true, message: 'Dedica registrata.' });
+    return res.json({ success: true, message: "Dedica registrata." });
   } catch (err) {
-    console.error('❌ Errore submit dettagliato:', err);
-    return res.status(500).json({ success: false, message: 'Errore interno.' });
+    console.error("❌ Errore submit dettagliato:", err);
+    return res.status(500).json({ success: false, message: "Errore interno." });
   }
 });
 
 // 🚀 Avvio server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server attivo su http://localhost:${PORT}`);
 });
