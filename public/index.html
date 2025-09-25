@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invia la tua dedica</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 500px;
+      position: relative;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      margin-top: 15px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #message {
+      margin-top: 15px;
+      text-align: center;
+      font-weight: bold;
+    }
+    .logo {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 100px;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Invia la tua dedica</h1>
+    <form id="dedicaForm">
+      <label for="date">Data</label>
+      <input type="date" id="date" name="date" required>
+
+      <label for="nomeDestinatario">Nome del destinatario</label>
+      <input type="text" id="nomeDestinatario" name="nomeDestinatario" required>
+
+      <label for="destinatario">Numero destinatario</label>
+      <input type="text" id="destinatario" name="destinatario" required placeholder="Es. 3391234567">
+
+      <label for="mittente">Numero mittente</label>
+      <input type="text" id="mittente" name="mittente" required placeholder="Es. 3407654321">
+
+      <label for="canzone">Canzone italiana da dedicare</label>
+      <input type="text" id="canzone" name="canzone" required>
+
+      <label for="messaggio">Messaggio</label>
+      <textarea id="messaggio" name="messaggio" required></textarea>
+
+      <button type="submit">Invia dedica</button>
+    </form>
+    <p id="message"></p>
+
+    <!-- Logo in basso a destra -->
+    <img src="saralotta-1.png" alt="Logo" class="logo">
+  </div>
+
+  <script>
+    document.getElementById('dedicaForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        date: document.getElementById('date').value,
+        nomeDestinatario: document.getElementById('nomeDestinatario').value,
+        destinatario: document.getElementById('destinatario').value,
+        mittente: document.getElementById('mittente').value,
+        canzone: document.getElementById('canzone').value,
+        messaggio: document.getElementById('messaggio').value
+      };
+      try {
+        const res = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        const msg = document.getElementById('message');
+        if (data.success) {
+          msg.style.color = "green";
+          msg.textContent = "✅ Dedica inviata con successo!";
+          document.getElementById('dedicaForm').reset();
+        } else {
+          msg.style.color = "red";
+          msg.textContent = "❌ " + data.message;
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('message').textContent = "❌ Errore di connessione.";
+      }
+    });
+  </script>
+</body>
+</html>
