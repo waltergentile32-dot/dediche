@@ -13,14 +13,15 @@ const PORT = process.env.PORT || 3000;
 // 🔑 ID del foglio Google (solo l’ID, NON l’URL intero)
 const DEDICHE_SHEET_ID = "16Epeco74Y5Z1baEND6hoMYCeknSkH6s-HFOMHNblt0E";
 
-// 📂 Carica il file delle credenziali JSON
+// 📂 Carica le credenziali da variabili d’ambiente
 let CREDENTIALS = null;
-if (fs.existsSync(path.join(__dirname, 'credentials.json'))) {
-  CREDENTIALS = require('./credentials.json');
+if (process.env.GOOGLE_CREDENTIALS) {
+  CREDENTIALS = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 } else {
-  console.error('❌ File credentials.json mancante!');
+  console.error('❌ GOOGLE_CREDENTIALS non trovate!');
   process.exit(1);
 }
+
 
 // 🔑 Funzione per collegarsi al foglio Google
 async function getDoc(sheetId) {
@@ -35,6 +36,7 @@ async function getDoc(sheetId) {
   await doc.loadInfo();
   return doc;
 }
+
 
 // 📞 Validazioni di base
 function normalizePhone(phone) {
